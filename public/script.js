@@ -660,7 +660,14 @@ function resetModal() {
     document.getElementById('accountName').value = '';
     document.getElementById('clientId').value = '';
     document.getElementById('clientSecret').value = '';
-    document.getElementById('redirectUri').value = 'http://localhost:8080';
+    
+    // Auto-detect redirect URI based on current hostname
+    const currentUrl = window.location.origin;
+    const redirectUri = currentUrl.includes('localhost') || currentUrl.includes('127.0.0.1')
+        ? 'http://localhost:8080'  // Local development
+        : `${currentUrl}/oauth/callback`;  // Production (Render)
+    
+    document.getElementById('redirectUri').value = redirectUri;
     document.getElementById('authCode').value = '';
     document.getElementById('refreshToken').value = '';
     document.getElementById('manualRefreshToken').value = '';

@@ -294,6 +294,163 @@ app.get('/api/posts/progress/:uploadId', (req, res) => {
   res.json(progress);
 });
 
+// OAuth Callback Handler - catches the redirect from Reddit
+app.get('/oauth/callback', (req, res) => {
+  const code = req.query.code;
+  const state = req.query.state;
+  const error = req.query.error;
+  
+  if (error) {
+    return res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Reddit OAuth Error</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+          }
+          .error {
+            background: #ffebee;
+            border: 2px solid #f44336;
+            border-radius: 8px;
+            padding: 20px;
+            color: #c62828;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="error">
+          <h2>❌ Authorization Error</h2>
+          <p><strong>Error:</strong> ${error}</p>
+          <p>Please try again.</p>
+        </div>
+      </body>
+      </html>
+    `);
+  }
+  
+  if (code) {
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Reddit OAuth Success</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+          }
+          .success {
+            background: #e8f5e9;
+            border: 2px solid #4caf50;
+            border-radius: 8px;
+            padding: 20px;
+            color: #2e7d32;
+          }
+          .code-box {
+            background: white;
+            border: 2px solid #4caf50;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 15px 0;
+            font-family: monospace;
+            font-size: 16px;
+            word-break: break-all;
+            color: #1b5e20;
+          }
+          .instructions {
+            background: #fff3e0;
+            border: 1px solid #ff9800;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 20px;
+            color: #e65100;
+          }
+          button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+          }
+          button:hover {
+            background: #5568d3;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="success">
+          <h2>✅ Authorization Successful!</h2>
+          <p>Copy this authorization code:</p>
+          <div class="code-box" id="codeBox">${code}</div>
+          <button onclick="copyCode()">Copy Code</button>
+          <div class="instructions">
+            <strong>Next steps:</strong>
+            <ol>
+              <li>Copy the code above (or click the button)</li>
+              <li>Go back to the Reddit Post Manager</li>
+              <li>Paste the code in the "Authorization Code" field</li>
+              <li>Click "Exchange Code for Token"</li>
+            </ol>
+          </div>
+        </div>
+        <script>
+          function copyCode() {
+            const codeBox = document.getElementById('codeBox');
+            const text = codeBox.textContent;
+            navigator.clipboard.writeText(text).then(() => {
+              alert('Code copied to clipboard!');
+            }).catch(() => {
+              // Fallback for older browsers
+              const textarea = document.createElement('textarea');
+              textarea.value = text;
+              document.body.appendChild(textarea);
+              textarea.select();
+              document.execCommand('copy');
+              document.body.removeChild(textarea);
+              alert('Code copied to clipboard!');
+            });
+          }
+        </script>
+      </body>
+      </html>
+    `);
+  } else {
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Reddit OAuth Callback</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+          }
+        </style>
+      </head>
+      <body>
+        <h2>Reddit OAuth Callback</h2>
+        <p>Waiting for authorization...</p>
+      </body>
+      </html>
+    `);
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);

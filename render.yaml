@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: reddit-post-api
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: PORT
+        value: 3000
+    healthCheckPath: /
+
+databases:
+  - name: reddit-post-db
+    databaseName: reddit_post_api
+    user: reddit_post_user
+    plan: free
+
+

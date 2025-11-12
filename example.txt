@@ -1,0 +1,48 @@
+# NOTE: These are example URLs. Replace with real Redgif links for actual posting.
+# Reddit will reject invalid or non-existent URLs.
+# These subreddits typically don't require flair:
+# - test (for testing)
+# - FreeKarma4U (for karma)
+# - aww (usually no flair required)
+# - funny (usually no flair required)
+# - memes (usually no flair required)
+
+test
+https://www.youtube.com/watch?v=LXb3EKWsInQ
+
+FreeKarma4U
+This will blow your mind!
+https://www.youtube.com/watch?v=9bZkp7q19f0
+
+memes
+Funniest moments ever!
+https://www.youtube.com/watch?v=kJQP7kiw5Fk
+
+funny
+You have to see this!
+https://www.youtube.com/watch?v=jNQXAC9IVRw
+
+aww
+Adorable animals compilation
+https://www.youtube.com/watch?v=OPf0YbXqDm0
+
+test
+Epic fails and wins
+https://www.youtube.com/watch?v=dQw4w9WgXcQ
+
+FreeKarma4U
+
+https://www.youtube.com/watch?v=LXb3EKWsInQ
+
+memes
+
+https://www.youtube.com/watch?v=9bZkp7q19f0
+
+funny
+Hilarious compilation
+https://www.youtube.com/watch?v=kJQP7kiw5Fk
+
+aww
+Cutest animals ever
+https://www.youtube.com/watch?v=jNQXAC9IVRw
+

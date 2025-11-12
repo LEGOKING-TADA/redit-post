@@ -1,0 +1,22 @@
+{
+  "accounts": [
+    {
+      "id": 1,
+      "name": "Account 1",
+      "client_id": "YOUR_CLIENT_ID",
+      "client_secret": "YOUR_CLIENT_SECRET",
+      "refresh_token": "YOUR_REFRESH_TOKEN",
+      "txt_file": ""
+    },
+    {
+      "id": 2,
+      "name": "Account 2",
+      "client_id": "YOUR_CLIENT_ID_2",
+      "client_secret": "YOUR_CLIENT_SECRET_2",
+      "refresh_token": "YOUR_REFRESH_TOKEN_2",
+      "txt_file": ""
+    }
+  ]
+}
+
+

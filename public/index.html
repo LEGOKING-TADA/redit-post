@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reddit Post Manager</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Full Page Loader -->
+    <div id="loaderOverlay" class="loader-overlay hidden">
+        <div class="loader-content">
+            <div class="loader-spinner"></div>
+            <div class="loader-text">Loading</div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <div class="container">
+        <header>
+            <h1>Reddit Post Manager</h1>
+            <button id="addAccountBtn" class="btn-secondary">+ Add Account</button>
+        </header>
+
+        <div class="main-content">
+            <div class="section">
+                <h2>Select Account</h2>
+                <select id="accountSelect">
+                    <option value="">Loading accounts...</option>
+                </select>
+            </div>
+
+            <div class="section">
+                <h2>Upload TXT File</h2>
+                <input type="file" id="fileInput" accept=".txt">
+                <button id="parseBtn" class="btn-primary" disabled>Parse File</button>
+            </div>
+
+            <div class="section" id="postsSection" style="display: none;">
+                <h2>Posts</h2>
+                <div class="delay-controls">
+                    <label>
+                        Delay From (seconds):
+                        <input type="number" id="delayFrom" value="5" min="0">
+                    </label>
+                    <label>
+                        Delay Up To (seconds):
+                        <input type="number" id="delayUpTo" value="10" min="0">
+                    </label>
+                </div>
+                <div style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center;">
+                    <button id="postAllBtn" class="btn-primary">Post All</button>
+                    <button id="cancelPostAllBtn" class="btn-secondary" style="display: none;">Cancel</button>
+                </div>
+                <div id="postsList"></div>
+            </div>
+
+            <div class="section" id="progressSection" style="display: none;">
+                <h2>Progress</h2>
+                <div id="progressText"></div>
+                <div class="progress-bar-container">
+                    <div id="progressBar" class="progress-bar" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="section" id="errorLogContainer" style="display: none;">
+                <h2>Error Log</h2>
+                <button id="clearErrorLogBtn" class="btn-secondary" style="margin-bottom: 10px;">Clear Log</button>
+                <div id="errorLog"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Account Modal -->
+    <div id="addAccountModal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add New Account</h2>
+                <button class="modal-close" id="closeModalBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="instructions-box">
+                    <h3>📋 How to Add an Account</h3>
+                    <ol class="instructions-list">
+                        <li>Get your Reddit API credentials from <a href="https://www.reddit.com/prefs/apps" target="_blank">reddit.com/prefs/apps</a></li>
+                        <li>Create a new app (type: "script")</li>
+                        <li>Copy your Client ID and Client Secret</li>
+                        <li>Choose: Use existing credentials OR enter new ones</li>
+                        <li>Get your Refresh Token (automatic or manual)</li>
+                        <li>Save the account</li>
+                    </ol>
+                </div>
+
+                <div class="form-group">
+                    <label for="accountName">Account Name:</label>
+                    <input type="text" id="accountName" placeholder="e.g., Account 1" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Use Existing Credentials:</label>
+                    <div class="radio-group">
+                        <label>
+                            <input type="radio" name="credentialsOption" value="existing" checked>
+                            Use existing Client ID/Secret
+                        </label>
+                        <label>
+                            <input type="radio" name="credentialsOption" value="new">
+                            Enter new Client ID/Secret
+                        </label>
+                    </div>
+                </div>
+
+                <div id="existingCredentialsContainer" class="form-group">
+                    <label for="existingAccountSelect">Select Account:</label>
+                    <select id="existingAccountSelect">
+                        <option value="">Select an account...</option>
+                    </select>
+                </div>
+
+                <div id="newCredentialsContainer" class="form-group hidden">
+                    <label for="clientId">Client ID:</label>
+                    <input type="text" id="clientId" placeholder="Your Reddit Client ID">
+                    
+                    <label for="clientSecret">Client Secret:</label>
+                    <input type="text" id="clientSecret" placeholder="Your Reddit Client Secret">
+                </div>
+
+                <div class="form-group">
+                    <label for="redirectUri">Redirect URI:</label>
+                    <input type="text" id="redirectUri" value="http://localhost:8080" placeholder="http://localhost:8080">
+                    <small>This must match the redirect URI in your Reddit app settings</small>
+                </div>
+
+                <div class="form-group">
+                    <label>Get Refresh Token:</label>
+                    <div class="radio-group">
+                        <label>
+                            <input type="radio" name="tokenMethod" value="oauth" checked>
+                            Automatic (OAuth Flow)
+                        </label>
+                        <label>
+                            <input type="radio" name="tokenMethod" value="manual">
+                            Manual (Paste token)
+                        </label>
+                    </div>
+                </div>
+
+                <div id="oauthFlowContainer">
+                    <div class="form-group">
+                        <button id="generateAuthUrlBtn" class="btn-secondary">1. Generate Auth URL</button>
+                        <div id="authUrlContainer" class="hidden" style="margin-top: 10px;">
+                            <input type="text" id="authUrl" readonly>
+                            <button id="copyAuthUrlBtn" class="btn-small">Copy</button>
+                            <button id="openAuthUrlBtn" class="btn-small">Open</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="authCode">2. Authorization Code (from redirect):</label>
+                        <input type="text" id="authCode" placeholder="Paste the code from the redirect URL">
+                        <button id="exchangeCodeBtn" class="btn-secondary" style="margin-top: 10px;">3. Exchange Code for Token</button>
+                    </div>
+
+                    <div id="refreshTokenContainer" class="form-group hidden">
+                        <label for="refreshToken">Refresh Token:</label>
+                        <input type="text" id="refreshToken" readonly>
+                        <button id="copyRefreshTokenBtn" class="btn-small">Copy</button>
+                    </div>
+                </div>
+
+                <div id="manualTokenContainer" class="hidden">
+                    <div class="form-group">
+                        <label for="manualRefreshToken">Refresh Token:</label>
+                        <input type="text" id="manualRefreshToken" placeholder="Paste your refresh token here">
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button id="saveAccountBtn" class="btn-primary">Save Account</button>
+                </div>
+
+                <div id="accountStatus" class="hidden"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

@@ -62,13 +62,24 @@ app.get('/api/accounts/:id', async (req, res) => {
 // Add new account
 app.post('/api/accounts/add', async (req, res) => {
   try {
-    const { name, client_id, client_secret, refresh_token, txt_file } = req.body;
+    const { name, client_id, client_secret, refresh_token, txt_file, proxy_host, proxy_port, proxy_username, proxy_password, proxy_type } = req.body;
 
     if (!name || !client_id || !client_secret || !refresh_token) {
       return res.status(400).json({ error: 'Missing required fields: name, client_id, client_secret, refresh_token' });
     }
 
-    const newAccount = await addAccount(name, client_id, client_secret, refresh_token, txt_file || '');
+    const newAccount = await addAccount(
+      name, 
+      client_id, 
+      client_secret, 
+      refresh_token, 
+      txt_file || '',
+      proxy_host || null,
+      proxy_port || null,
+      proxy_username || null,
+      proxy_password || null,
+      proxy_type || 'http'
+    );
     res.json({ success: true, account: newAccount });
   } catch (error) {
     console.error('Error adding account:', error);
@@ -79,8 +90,20 @@ app.post('/api/accounts/add', async (req, res) => {
 // Update account
 app.put('/api/accounts/:id', async (req, res) => {
   try {
-    const { name, client_id, client_secret, refresh_token, txt_file } = req.body;
-    const account = await updateAccount(req.params.id, name, client_id, client_secret, refresh_token, txt_file || '');
+    const { name, client_id, client_secret, refresh_token, txt_file, proxy_host, proxy_port, proxy_username, proxy_password, proxy_type } = req.body;
+    const account = await updateAccount(
+      req.params.id, 
+      name, 
+      client_id, 
+      client_secret, 
+      refresh_token, 
+      txt_file || '',
+      proxy_host || null,
+      proxy_port || null,
+      proxy_username || null,
+      proxy_password || null,
+      proxy_type || 'http'
+    );
     
     if (!account) {
       return res.status(404).json({ error: 'Account not found' });
@@ -292,6 +315,119 @@ app.get('/api/posts/progress/:uploadId', (req, res) => {
   }
   
   res.json(progress);
+});
+
+// Check proxy IP
+app.post('/api/proxy/check-ip', async (req, res) => {
+  try {
+    const { accountId } = req.body;
+    
+    if (!accountId) {
+      return res.status(400).json({ error: 'Missing accountId' });
+    }
+    
+    const account = await getAccountById(accountId);
+    
+    if (!account) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+    
+    // Check if proxy is configured
+    if (!account.proxy_host || !account.proxy_port) {
+      return res.status(400).json({ error: 'No proxy configured for this account' });
+    }
+    
+    // Build proxy URL
+    const proxyType = account.proxy_type || 'http';
+    let proxyUrl = `${proxyType}://`;
+    if (account.proxy_username && account.proxy_password) {
+      proxyUrl += `${account.proxy_username}:${account.proxy_password}@`;
+    }
+    proxyUrl += `${account.proxy_host}:${account.proxy_port}`;
+    
+    console.log(`Checking proxy IP for account ${accountId}:`);
+    console.log(`Proxy URL: ${proxyType}://${account.proxy_host}:${account.proxy_port} (auth: ${account.proxy_username ? 'yes' : 'no'})`);
+    
+    // Make request through proxy to check IP
+    const { HttpsProxyAgent } = require('https-proxy-agent');
+    const { HttpProxyAgent } = require('http-proxy-agent');
+    const { SocksProxyAgent } = require('socks-proxy-agent');
+    
+    // For HTTPS URLs, we need HttpsProxyAgent even if proxy type is "http"
+    // Try multiple IP checking services
+    const checkUrls = [
+      'https://api.ipify.org?format=json',
+      'http://api.ipify.org?format=json',
+      'https://icanhazip.com',
+      'http://icanhazip.com'
+    ];
+    
+    let httpAgent, httpsAgent;
+    if (account.proxy_type === 'socks5') {
+      const agent = new SocksProxyAgent(proxyUrl);
+      httpAgent = agent;
+      httpsAgent = agent;
+    } else {
+      // For HTTPS requests through HTTP proxy, use HttpsProxyAgent
+      // For HTTP requests, use HttpProxyAgent
+      httpsAgent = new HttpsProxyAgent(proxyUrl);
+      httpAgent = new HttpProxyAgent(proxyUrl);
+    }
+    
+    let lastError = null;
+    
+    // Try each URL until one works
+    for (const checkUrl of checkUrls) {
+      try {
+        const isHttps = checkUrl.startsWith('https://');
+        const agent = isHttps ? httpsAgent : httpAgent;
+        
+        const response = await axios.get(checkUrl, {
+          httpAgent: httpAgent,
+          httpsAgent: httpsAgent,
+          timeout: 15000,
+          validateStatus: (status) => status < 500 // Accept 2xx, 3xx, 4xx
+        });
+        
+        // Parse IP from response
+        let ip = null;
+        if (checkUrl.includes('ipify')) {
+          ip = response.data?.ip || response.data;
+        } else {
+          // For icanhazip.com, response is plain text
+          ip = typeof response.data === 'string' ? response.data.trim() : response.data?.ip;
+        }
+        
+        if (ip) {
+          return res.json({
+            success: true,
+            ip: ip,
+            proxy: {
+              host: account.proxy_host,
+              port: account.proxy_port,
+              type: account.proxy_type || 'http'
+            }
+          });
+        }
+      } catch (error) {
+        lastError = error;
+        console.log(`Failed to check IP with ${checkUrl}:`, error.message);
+        // Continue to next URL
+        continue;
+      }
+    }
+    
+    // If all URLs failed
+    console.error('Error checking proxy IP - all services failed:', lastError);
+    res.status(500).json({
+      error: 'Failed to check proxy IP',
+      message: lastError?.message || 'All IP checking services failed. Please verify your proxy settings.',
+      details: lastError?.response?.data || lastError?.message
+    });
+  } catch (error) {
+    console.error('Error in check proxy IP:', error);
+    res.status(500).json({ error: error.message || 'Failed to check proxy IP' });
+  }
 });
 
 // OAuth Callback Handler - catches the redirect from Reddit

@@ -107,7 +107,16 @@ function setupEventListeners() {
         if (e.target.value && fileInput.files.length > 0) {
             parseBtn.disabled = false;
         }
+        // Update proxy section when account changes
+        updateProxySection();
     });
+    
+    // Proxy management event listeners
+    document.getElementById('editProxyBtn').addEventListener('click', showProxyEditForm);
+    document.getElementById('saveProxyBtn').addEventListener('click', saveProxy);
+    document.getElementById('cancelProxyBtn').addEventListener('click', cancelProxyEdit);
+    document.getElementById('clearProxyBtn').addEventListener('click', clearProxy);
+    document.getElementById('checkProxyIpBtn').addEventListener('click', checkProxyIp);
     
     // Modal event listeners
     document.querySelectorAll('input[name="credentialsOption"]').forEach(radio => {
@@ -155,6 +164,7 @@ async function loadAccounts(retryCount = 0) {
         accounts = await response.json();
         updateAccountSelect();
         populateExistingAccounts();
+        updateProxySection();
         
         if (retryCount > 0) {
             showToast('Accounts loaded successfully', 'success');
@@ -1042,6 +1052,257 @@ function clearErrorLog() {
     errorLog.innerHTML = '';
     document.getElementById('errorLogContainer').classList.add('hidden');
     showToast('Error log cleared', 'info');
+}
+
+// Proxy Management Functions
+async function updateProxySection() {
+    const proxySection = document.getElementById('proxySection');
+    const proxyInfo = document.getElementById('proxyInfo');
+    const proxyEditForm = document.getElementById('proxyEditForm');
+    
+    if (!currentAccountId) {
+        proxySection.style.display = 'none';
+        return;
+    }
+    
+    try {
+        const account = accounts.find(a => a.id == currentAccountId);
+        if (!account) {
+            proxySection.style.display = 'none';
+            return;
+        }
+        
+        proxySection.style.display = 'block';
+        proxyEditForm.style.display = 'none';
+        
+        // Display current proxy info
+        if (account.proxy_host && account.proxy_port) {
+            const authInfo = account.proxy_username ? ` (${account.proxy_username})` : '';
+            proxyInfo.innerHTML = `
+                <div style="padding: 10px; background: #e7f3ff; border-radius: 6px; border-left: 4px solid #2196F3;">
+                    <strong>Current Proxy:</strong> ${account.proxy_type || 'http'}://${account.proxy_host}:${account.proxy_port}${authInfo}
+                </div>
+            `;
+        } else {
+            proxyInfo.innerHTML = `
+                <div style="padding: 10px; background: #fff3cd; border-radius: 6px; border-left: 4px solid #ffc107;">
+                    <strong>No proxy configured</strong> - Click "Edit Proxy" to add one
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error updating proxy section:', error);
+    }
+}
+
+function showProxyEditForm() {
+    const proxyEditForm = document.getElementById('proxyEditForm');
+    const account = accounts.find(a => a.id == currentAccountId);
+    
+    if (account) {
+        document.getElementById('proxyType').value = account.proxy_type || 'http';
+        document.getElementById('proxyHost').value = account.proxy_host || '';
+        document.getElementById('proxyPort').value = account.proxy_port || '';
+        document.getElementById('proxyUsername').value = account.proxy_username || '';
+        document.getElementById('proxyPassword').value = account.proxy_password || '';
+    }
+    
+    proxyEditForm.style.display = 'block';
+}
+
+function cancelProxyEdit() {
+    document.getElementById('proxyEditForm').style.display = 'none';
+}
+
+async function saveProxy() {
+    if (!currentAccountId) {
+        showToast('Please select an account first', 'warning');
+        return;
+    }
+    
+    const account = accounts.find(a => a.id == currentAccountId);
+    if (!account) {
+        showToast('Account not found', 'error');
+        return;
+    }
+    
+    const proxyType = document.getElementById('proxyType').value;
+    const proxyHost = document.getElementById('proxyHost').value.trim();
+    const proxyPort = document.getElementById('proxyPort').value ? parseInt(document.getElementById('proxyPort').value) : null;
+    const proxyUsername = document.getElementById('proxyUsername').value.trim() || null;
+    const proxyPassword = document.getElementById('proxyPassword').value.trim() || null;
+    
+    // Validate
+    if (proxyHost && !proxyPort) {
+        showToast('Please enter both host and port', 'warning');
+        return;
+    }
+    
+    if (proxyPort && !proxyHost) {
+        showToast('Please enter both host and port', 'warning');
+        return;
+    }
+    
+    const saveBtn = document.getElementById('saveProxyBtn');
+    saveBtn.classList.add('loading');
+    saveBtn.disabled = true;
+    
+    try {
+        const response = await fetch(`/api/accounts/${currentAccountId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: account.name,
+                client_id: account.client_id,
+                client_secret: account.client_secret,
+                refresh_token: account.refresh_token,
+                txt_file: account.txt_file || '',
+                proxy_host: proxyHost || null,
+                proxy_port: proxyPort,
+                proxy_username: proxyUsername,
+                proxy_password: proxyPassword,
+                proxy_type: proxyType
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            showToast('Proxy settings saved successfully!', 'success');
+            await loadAccounts();
+            updateProxySection();
+            cancelProxyEdit();
+        } else {
+            throw new Error(data.error || 'Failed to save proxy settings');
+        }
+    } catch (error) {
+        console.error('Error saving proxy:', error);
+        showToast('Error saving proxy: ' + error.message, 'error', 5000);
+    } finally {
+        saveBtn.classList.remove('loading');
+        saveBtn.disabled = false;
+    }
+}
+
+async function clearProxy() {
+    if (!confirm('Are you sure you want to clear the proxy settings for this account?')) {
+        return;
+    }
+    
+    if (!currentAccountId) {
+        showToast('Please select an account first', 'warning');
+        return;
+    }
+    
+    const account = accounts.find(a => a.id == currentAccountId);
+    if (!account) {
+        showToast('Account not found', 'error');
+        return;
+    }
+    
+    const clearBtn = document.getElementById('clearProxyBtn');
+    clearBtn.classList.add('loading');
+    clearBtn.disabled = true;
+    
+    try {
+        const response = await fetch(`/api/accounts/${currentAccountId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: account.name,
+                client_id: account.client_id,
+                client_secret: account.client_secret,
+                refresh_token: account.refresh_token,
+                txt_file: account.txt_file || '',
+                proxy_host: null,
+                proxy_port: null,
+                proxy_username: null,
+                proxy_password: null,
+                proxy_type: 'http'
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            showToast('Proxy settings cleared successfully!', 'success');
+            await loadAccounts();
+            updateProxySection();
+            cancelProxyEdit();
+        } else {
+            throw new Error(data.error || 'Failed to clear proxy settings');
+        }
+    } catch (error) {
+        console.error('Error clearing proxy:', error);
+        showToast('Error clearing proxy: ' + error.message, 'error', 5000);
+    } finally {
+        clearBtn.classList.remove('loading');
+        clearBtn.disabled = false;
+    }
+}
+
+async function checkProxyIp() {
+    if (!currentAccountId) {
+        showToast('Please select an account first', 'warning');
+        return;
+    }
+    
+    const account = accounts.find(a => a.id == currentAccountId);
+    if (!account) {
+        showToast('Account not found', 'error');
+        return;
+    }
+    
+    if (!account.proxy_host || !account.proxy_port) {
+        showToast('No proxy configured for this account', 'warning');
+        return;
+    }
+    
+    const checkBtn = document.getElementById('checkProxyIpBtn');
+    const resultDiv = document.getElementById('proxyIpResult');
+    
+    checkBtn.classList.add('loading');
+    checkBtn.disabled = true;
+    resultDiv.style.display = 'none';
+    
+    try {
+        const response = await fetch('/api/proxy/check-ip', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accountId: currentAccountId })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            resultDiv.style.display = 'block';
+            resultDiv.style.background = '#d4edda';
+            resultDiv.style.border = '2px solid #28a745';
+            resultDiv.style.color = '#155724';
+            resultDiv.innerHTML = `
+                <strong>✓ Proxy is working!</strong><br>
+                <strong>Current IP:</strong> ${data.ip}<br>
+                <strong>Proxy:</strong> ${data.proxy.type}://${data.proxy.host}:${data.proxy.port}
+            `;
+            showToast('Proxy IP checked successfully!', 'success');
+        } else {
+            throw new Error(data.error || 'Failed to check proxy IP');
+        }
+    } catch (error) {
+        console.error('Error checking proxy IP:', error);
+        resultDiv.style.display = 'block';
+        resultDiv.style.background = '#f8d7da';
+        resultDiv.style.border = '2px solid #dc3545';
+        resultDiv.style.color = '#721c24';
+        resultDiv.innerHTML = `
+            <strong>✗ Error checking proxy IP</strong><br>
+            ${error.message || 'Failed to connect through proxy. Please check your proxy settings.'}
+        `;
+        showToast('Error checking proxy IP: ' + error.message, 'error', 5000);
+    } finally {
+        checkBtn.classList.remove('loading');
+        checkBtn.disabled = false;
+    }
 }
 
 // Toast Notification System

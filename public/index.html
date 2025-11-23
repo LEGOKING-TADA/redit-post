@@ -32,6 +32,47 @@
                 </select>
             </div>
 
+            <div class="section" id="proxySection" style="display: none;">
+                <h2>Proxy Settings</h2>
+                <div id="proxyInfo" style="margin-bottom: 15px;"></div>
+                <button id="editProxyBtn" class="btn-secondary" style="margin-bottom: 15px;">Edit Proxy</button>
+                <button id="checkProxyIpBtn" class="btn-primary" style="margin-bottom: 15px;">Show Current IP</button>
+                <div id="proxyIpResult" style="margin-top: 15px; padding: 10px; border-radius: 6px; display: none;"></div>
+                
+                <div id="proxyEditForm" style="display: none; margin-top: 20px; padding: 20px; background: white; border-radius: 6px;">
+                    <h3 style="margin-bottom: 15px;">Edit Proxy Configuration</h3>
+                    <div class="form-group">
+                        <label for="proxyType">Proxy Type:</label>
+                        <select id="proxyType">
+                            <option value="http">HTTP</option>
+                            <option value="https">HTTPS</option>
+                            <option value="socks5">SOCKS5</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="proxyHost">Proxy Host:</label>
+                        <input type="text" id="proxyHost" placeholder="e.g., proxy.example.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="proxyPort">Proxy Port:</label>
+                        <input type="number" id="proxyPort" placeholder="e.g., 8080">
+                    </div>
+                    <div class="form-group">
+                        <label for="proxyUsername">Username (optional):</label>
+                        <input type="text" id="proxyUsername" placeholder="Leave empty if no authentication">
+                    </div>
+                    <div class="form-group">
+                        <label for="proxyPassword">Password (optional):</label>
+                        <input type="password" id="proxyPassword" placeholder="Leave empty if no authentication">
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button id="saveProxyBtn" class="btn-primary">Save Proxy</button>
+                        <button id="cancelProxyBtn" class="btn-secondary">Cancel</button>
+                        <button id="clearProxyBtn" class="btn-secondary" style="background: #dc3545;">Clear Proxy</button>
+                    </div>
+                </div>
+            </div>
+
             <div class="section">
                 <h2>Upload TXT File</h2>
                 <input type="file" id="fileInput" accept=".txt">

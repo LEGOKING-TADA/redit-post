@@ -1,8 +1,62 @@
 const axios = require('axios');
 const { getAccountById } = require('../db/database');
+const { HttpsProxyAgent } = require('https-proxy-agent');
+const { HttpProxyAgent } = require('http-proxy-agent');
+const { SocksProxyAgent } = require('socks-proxy-agent');
 
 // In-memory storage for upload progress
 const uploadProgress = {};
+
+// Cache for proxy agents (reuse agents for better performance)
+const agentCache = new Map();
+
+// Get proxy agents for account (with caching)
+function getProxyAgents(account) {
+  if (!account || !account.proxy_host || !account.proxy_port) {
+    return { httpAgent: null, httpsAgent: null };
+  }
+  
+  // Create cache key
+  const cacheKey = `${account.id}-${account.proxy_type || 'http'}-${account.proxy_host}-${account.proxy_port}`;
+  
+  // Check cache first
+  if (agentCache.has(cacheKey)) {
+    return agentCache.get(cacheKey);
+  }
+  
+  // Build proxy URL
+  const proxyType = account.proxy_type || 'http';
+  let proxyUrl = `${proxyType}://`;
+  if (account.proxy_username && account.proxy_password) {
+    proxyUrl += `${account.proxy_username}:${account.proxy_password}@`;
+  }
+  proxyUrl += `${account.proxy_host}:${account.proxy_port}`;
+  
+  // Create appropriate agents with timeout settings
+  const agentOptions = {
+    timeout: 30000, // 30 second timeout
+    keepAlive: true, // Reuse connections
+    keepAliveMsecs: 1000
+  };
+  
+  let agents;
+  if (proxyType === 'socks5') {
+    const agent = new SocksProxyAgent(proxyUrl, agentOptions);
+    agents = { httpAgent: agent, httpsAgent: agent };
+  } else {
+    // For HTTPS requests through HTTP proxy, use HttpsProxyAgent
+    // For HTTP requests, use HttpProxyAgent
+    agents = {
+      httpAgent: new HttpProxyAgent(proxyUrl, agentOptions),
+      httpsAgent: new HttpsProxyAgent(proxyUrl, agentOptions)
+    };
+  }
+  
+  // Cache agents
+  agentCache.set(cacheKey, agents);
+  
+  return agents;
+}
 
 async function getAccessToken(accountId) {
   try {
@@ -23,6 +77,28 @@ async function getAccessToken(accountId) {
       throw new Error('Invalid or missing refresh_token. Please get a valid refresh_token using get-refresh-token.js');
     }
 
+    // Get proxy agents if configured
+    const { httpAgent, httpsAgent } = getProxyAgents(account);
+    const axiosConfig = {
+      auth: {
+        username: client_id,
+        password: client_secret
+      },
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': 'RedditPostAPI/1.0'
+      }
+    };
+    
+    // Add proxy agents if available
+    if (httpAgent && httpsAgent) {
+      axiosConfig.httpAgent = httpAgent;
+      axiosConfig.httpsAgent = httpsAgent;
+      console.log(`[Proxy] Using proxy for access token: ${account.proxy_type || 'http'}://${account.proxy_host}:${account.proxy_port}`);
+    } else {
+      console.log('[Proxy] No proxy configured - using direct connection for access token');
+    }
+
     // Get access token using refresh token
     const response = await axios.post(
       'https://www.reddit.com/api/v1/access_token',
@@ -31,14 +107,8 @@ async function getAccessToken(accountId) {
         refresh_token: refresh_token
       }),
       {
-        auth: {
-          username: client_id,
-          password: client_secret
-        },
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'User-Agent': 'RedditPostAPI/1.0'
-        }
+        ...axiosConfig,
+        timeout: 30000 // 30 second timeout for proxy connections
       }
     );
 
@@ -46,9 +116,14 @@ async function getAccessToken(accountId) {
   } catch (error) {
     console.error('Error getting access token:', error.response?.data || error.message);
     
+    // Check if it's a proxy connection error
+    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT' || error.message?.includes('proxy')) {
+      throw new Error(`Proxy connection failed: ${error.message}. Please check your proxy settings (${account.proxy_host}:${account.proxy_port})`);
+    }
+    
     // Provide more specific error messages
     if (error.response?.status === 401) {
-      throw new Error('Unauthorized: Invalid refresh_token, client_id, or client_secret. Please verify your credentials in accounts.json and get a new refresh_token if needed.');
+      throw new Error('Unauthorized: Invalid refresh_token, client_id, or client_secret. Please verify your credentials and get a new refresh_token if needed.');
     }
     
     if (error.response?.data) {
@@ -61,6 +136,7 @@ async function getAccessToken(accountId) {
 
 async function uploadPost(post, accountId) {
   try {
+    const account = await getAccountById(accountId);
     const accessToken = await getAccessToken(accountId);
 
     // Validate URL if provided
@@ -83,15 +159,32 @@ async function uploadPost(post, accountId) {
       ...(post.url && { url: post.url })
     };
 
+    // Get proxy agents if configured
+    const { httpAgent, httpsAgent } = getProxyAgents(account);
+    const axiosConfig = {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': 'RedditPostAPI/1.0 by /u/yourusername'
+      }
+    };
+    
+    // Add proxy agents if available
+    if (httpAgent && httpsAgent) {
+      axiosConfig.httpAgent = httpAgent;
+      axiosConfig.httpsAgent = httpsAgent;
+      console.log(`[Proxy] Using proxy for post submission: ${account.proxy_type || 'http'}://${account.proxy_host}:${account.proxy_port}`);
+      console.log(`[Proxy] Posting to r/${post.subreddit} via proxy`);
+    } else {
+      console.log('[Proxy] No proxy configured - using direct connection for post submission');
+    }
+
     const response = await axios.post(
       'https://oauth.reddit.com/api/submit',
       new URLSearchParams(postData),
       {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'User-Agent': 'RedditPostAPI/1.0 by /u/yourusername'
-        }
+        ...axiosConfig,
+        timeout: 30000 // 30 second timeout for proxy connections
       }
     );
 
@@ -238,6 +331,11 @@ async function uploadPost(post, accountId) {
     };
   } catch (error) {
     console.error('Error uploading post:', error.response?.data || error.message);
+    
+    // Check if it's a proxy connection error
+    if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT' || error.message?.includes('proxy')) {
+      throw new Error(`Proxy connection failed: ${error.message}. Please check your proxy settings (${account.proxy_host}:${account.proxy_port})`);
+    }
     
     // Extract error message from Reddit API response
     if (error.response?.data?.json?.errors) {

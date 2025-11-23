@@ -76,7 +76,24 @@ function hideLoader() {
 document.addEventListener('DOMContentLoaded', () => {
     loadAccounts();
     setupEventListeners();
+    loadVersion();
 });
+
+// Load version from API
+async function loadVersion() {
+    try {
+        const response = await fetch('/api/version');
+        if (response.ok) {
+            const data = await response.json();
+            const versionBadge = document.getElementById('versionBadge');
+            if (versionBadge) {
+                versionBadge.textContent = `v${data.version}`;
+            }
+        }
+    } catch (error) {
+        console.error('Error loading version:', error);
+    }
+}
 
 // Event Listeners
 function setupEventListeners() {

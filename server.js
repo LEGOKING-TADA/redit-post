@@ -34,6 +34,12 @@ initDatabase().catch(err => {
 
 // Routes
 
+// Get version
+app.get('/api/version', (req, res) => {
+  const packageJson = require('./package.json');
+  res.json({ version: packageJson.version });
+});
+
 // Get all accounts
 app.get('/api/accounts', async (req, res) => {
   try {

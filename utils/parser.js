@@ -23,6 +23,8 @@ function parseTxtFile(filePath) {
             subreddit: currentPost.subreddit.trim(),
             title: currentPost.title ? currentPost.title.trim() : '',
             url: currentPost.url ? currentPost.url.trim() : null,
+            flair_id: currentPost.flair_id || null,
+            flair_text: currentPost.flair_text || null,
             hasUrl: !!(currentPost.url && currentPost.url.trim().length > 0),
             hasTitle: hasValidTitle,
             hasSubreddit: hasValidSubreddit,
@@ -54,7 +56,9 @@ function parseTxtFile(filePath) {
       currentPost = {
         subreddit: subreddit,
         title: null,
-        url: null
+        url: null,
+        flair_id: null,
+        flair_text: null
       };
     }
     // Second line is title
@@ -71,6 +75,13 @@ function parseTxtFile(filePath) {
     else if (!currentPost.url && line.startsWith('http')) {
       currentPost.url = line;
     }
+    // Fourth line can be flair (format: "flair:FlairName" or "flair_id:abc123")
+    else if (line.startsWith('flair:')) {
+      currentPost.flair_text = line.replace('flair:', '').trim();
+    }
+    else if (line.startsWith('flair_id:')) {
+      currentPost.flair_id = line.replace('flair_id:', '').trim();
+    }
     // If we already have subreddit, title, and url, skip additional lines
   }
 
@@ -85,6 +96,8 @@ function parseTxtFile(filePath) {
         subreddit: currentPost.subreddit.trim(),
         title: currentPost.title ? currentPost.title.trim() : '',
         url: currentPost.url ? currentPost.url.trim() : null,
+        flair_id: currentPost.flair_id || null,
+        flair_text: currentPost.flair_text || null,
         hasUrl: !!(currentPost.url && currentPost.url.trim().length > 0),
         hasTitle: hasValidTitle,
         hasSubreddit: hasValidSubreddit,

@@ -103,15 +103,31 @@ function setupEventListeners() {
     document.getElementById('postAllBtn').addEventListener('click', postAll);
     document.getElementById('cancelPostAllBtn').addEventListener('click', cancelPostAll);
     document.getElementById('clearErrorLogBtn').addEventListener('click', clearErrorLog);
+    document.getElementById('downloadExampleBtn').addEventListener('click', downloadExampleTxt);
     
     // Enable parse button when file is selected
     document.getElementById('fileInput').addEventListener('change', (e) => {
         const parseBtn = document.getElementById('parseBtn');
-        if (e.target.files.length > 0 && currentAccountId) {
-            parseBtn.disabled = false;
-        } else if (e.target.files.length > 0) {
-            parseBtn.disabled = false; // Enable even without account, will show alert
+        const fileLabel = document.querySelector('.file-text');
+        const file = e.target.files[0];
+        
+        if (file) {
+            if (fileLabel) {
+                fileLabel.textContent = file.name;
+                fileLabel.style.color = '#667eea';
+                fileLabel.style.fontWeight = '600';
+            }
+            if (currentAccountId) {
+                parseBtn.disabled = false;
+            } else {
+                parseBtn.disabled = false; // Enable even without account, will show alert
+            }
         } else {
+            if (fileLabel) {
+                fileLabel.textContent = 'Choose TXT file...';
+                fileLabel.style.color = '#64748b';
+                fileLabel.style.fontWeight = '500';
+            }
             parseBtn.disabled = true;
         }
     });
@@ -338,12 +354,17 @@ function displayPosts(posts) {
             ? `<div style="color: #856404; font-size: 12px; margin-top: 5px; font-style: italic;">⚠️ ${warnings.join(', ')}</div>`
             : '';
         
+        const flairHTML = (post.flair_text || post.flair_id) 
+            ? `<p><strong>Flair:</strong> <span style="background: #667eea; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">${post.flair_text || post.flair_id}</span></p>`
+            : '';
+        
         postDiv.innerHTML = `
             <div>
                 <span class="status ${statusClass}">${statusText}</span>
                 <h3>r/${post.subreddit || 'N/A'}</h3>
                 <p><strong>Title:</strong> ${post.title && post.title.trim().length > 0 ? post.title : '<span style="color: #dc3545;">Missing</span>'}</p>
                 <p><strong>URL:</strong> ${post.url && post.url.trim().length > 0 ? post.url : '<span style="color: #856404;">Missing (optional)</span>'}</p>
+                ${flairHTML}
                 ${warningHTML}
             </div>
             <button class="btn-primary" onclick="postSingle(${post.id})" ${!post.isValid ? 'disabled' : ''}>
@@ -1320,6 +1341,93 @@ async function checkProxyIp() {
         checkBtn.classList.remove('loading');
         checkBtn.disabled = false;
     }
+}
+
+// Download Example TXT File
+function downloadExampleTxt() {
+    const exampleContent = `═══════════════════════════════════════════════════════════
+  Reddit Post Manager - Example TXT File
+═══════════════════════════════════════════════════════════
+
+📋 FORMAT FOR EACH POST:
+───────────────────────────────────────────────────────────
+  Line 1: Subreddit name (required)
+  Line 2: Post title (required)
+  Line 3: URL (optional - leave empty for text post)
+  Line 4: Flair (optional - format: flair:FlairName or flair_id:abc123)
+
+  Empty lines separate posts
+  Lines starting with # are comments and will be ignored
+
+═══════════════════════════════════════════════════════════
+  EXAMPLES
+═══════════════════════════════════════════════════════════
+
+Example 1: Post with URL
+───────────────────────────────────────────────────────────
+test
+This is a test post
+https://www.youtube.com/watch?v=LXb3EKWsInQ
+
+
+Example 2: Post with URL and Flair
+───────────────────────────────────────────────────────────
+memes
+Funniest moments ever!
+https://www.youtube.com/watch?v=kJQP7kiw5Fk
+flair:Funny
+
+
+Example 3: Text Post (no URL)
+───────────────────────────────────────────────────────────
+FreeKarma4U
+This will blow your mind!
+
+
+Example 4: Text Post with Flair
+───────────────────────────────────────────────────────────
+funny
+You have to see this!
+flair:Viral
+
+
+Example 5: Post with Flair ID
+───────────────────────────────────────────────────────────
+aww
+Adorable animals compilation
+https://www.youtube.com/watch?v=OPf0YbXqDm0
+flair_id:abc123
+
+
+═══════════════════════════════════════════════════════════
+  NOTES
+═══════════════════════════════════════════════════════════
+
+✓ Subreddit: Required
+✓ Title: Required
+○ URL: Optional (if missing, will post as text)
+○ Flair: Optional (if missing, will post without flair)
+
+For Flair:
+  • Use "flair:FlairName" for flair text
+  • Use "flair_id:abc123" for flair ID
+  • You can also use the "Check for Flair" button in the UI
+
+═══════════════════════════════════════════════════════════
+`;
+
+    // Create blob and download
+    const blob = new Blob([exampleContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'example.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    showToast('Example TXT file downloaded!', 'success');
 }
 
 // Toast Notification System

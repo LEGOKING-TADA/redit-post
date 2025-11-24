@@ -46,3 +46,16 @@ aww
 Cutest animals ever
 https://www.youtube.com/watch?v=jNQXAC9IVRw
 
+# Example with flair:
+# Format: Add "flair:FlairName" or "flair_id:abc123" after the URL
+# subreddit
+# Title
+# URL (optional)
+# flair:FlairName
+#
+# Example:
+# memes
+# Funniest moments!
+# https://example.com/video
+# flair:Funny
+

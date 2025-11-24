@@ -156,7 +156,9 @@ async function uploadPost(post, accountId) {
       sr: post.subreddit,
       title: post.title,
       kind: post.url ? 'link' : 'self',
-      ...(post.url && { url: post.url })
+      ...(post.url && { url: post.url }),
+      ...(post.flair_id && { flair_id: post.flair_id }),
+      ...(post.flair_text && !post.flair_id && { flair_text: post.flair_text })
     };
 
     // Get proxy agents if configured

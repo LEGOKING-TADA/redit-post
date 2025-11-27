@@ -46,16 +46,54 @@ aww
 Cutest animals ever
 https://www.youtube.com/watch?v=jNQXAC9IVRw
 
-# Example with flair:
-# Format: Add "flair:FlairName" or "flair_id:abc123" after the URL
+# ============================================================================
+# FORMAT FOR POSTS WITH FLAIR
+# ============================================================================
+# 
+# IMPORTANT: Some subreddits REQUIRE flair. If a subreddit requires flair,
+# you MUST include a valid flair_id or flair_text in your TXT file.
+#
+# Format (each post separated by empty line):
 # subreddit
 # Title
-# URL (optional)
-# flair:FlairName
+# URL (optional - if no URL, it's a text post)
+# flair_id:abc123-def456-ghi789  OR  flair:FlairName
 #
-# Example:
+# ============================================================================
+# EXAMPLES:
+# ============================================================================
+#
+# Example 1: Post with URL and flair_id
+# youngslutsforoldpervs
+# Ready to be pounded by older daddies
+# https://www.redgifs.com/watch/magentaelegantiaerismetalmark
+# flair_id:f5e8c3d0-9e4f-11ed-a8fc-0e5f3c7d6b4a
+#
+# Example 2: Post with URL and flair text (will try to find flair_id automatically)
 # memes
 # Funniest moments!
 # https://example.com/video
 # flair:Funny
+#
+# Example 3: Text post with flair_id
+# test
+# This is a test post
+# flair_id:abc123-def456-ghi789
+#
+# Example 4: Post without flair (if subreddit doesn't require it)
+# FreeKarma4U
+# This will blow your mind!
+# https://www.youtube.com/watch?v=9bZkp7q19f0
+#
+# ============================================================================
+# HOW TO GET FLAIR_ID:
+# ============================================================================
+# 1. Use the "Check for Flair" button in the web UI
+# 2. Or manually check the subreddit and inspect the HTML/network requests
+# 3. The flair_id is usually a UUID format like: f5e8c3d0-9e4f-11ed-a8fc-0e5f3c7d6b4a
+#
+# NOTE: flair_id is more reliable than flair text, as it's unique and won't
+# change if the subreddit renames the flair.
+#
+# ============================================================================
 

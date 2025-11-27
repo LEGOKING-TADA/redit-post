@@ -205,6 +205,60 @@ async function uploadPost(post, accountId) {
       
       // Check if it's a jquery array response (Reddit sometimes returns this for both success and errors)
       if (response.data.jquery && Array.isArray(response.data.jquery)) {
+        // First, check for error messages in the jquery array
+        const jqueryData = response.data.jquery;
+        let errorMessage = null;
+        
+        // Look for error messages in the jquery array
+        for (let i = 0; i < jqueryData.length; i++) {
+          const item = jqueryData[i];
+          if (Array.isArray(item) && item.length >= 4) {
+            // Check for 'call' action with error messages
+            if (item[2] === 'call' && Array.isArray(item[3]) && item[3].length > 0) {
+              const textContent = item[3][0];
+              if (typeof textContent === 'string' && textContent.length > 0) {
+                // Check for specific error messages
+                if (textContent.includes('Can\'t set flair_text without a flair_id') || 
+                    textContent.includes('flair_text without a flair_id')) {
+                  errorMessage = `Flair error: Cannot use flair_text without flair_id. This subreddit requires a valid flair_id. Please use "flair_id:..." in your TXT file instead of "flair:...".`;
+                  break;
+                } else if (textContent.includes('must contain post flair') || 
+                           textContent.includes('FLAIR_REQUIRED') ||
+                           textContent.includes('SUBMIT_VALIDATION_FLAIR_REQUIRED')) {
+                  errorMessage = `This subreddit (r/${post.subreddit}) REQUIRES post flair. Please add a valid flair_id using "flair_id:..." in your TXT file.`;
+                  break;
+                } else if (textContent.includes('Flair template not found') || 
+                           textContent.includes('BAD_FLAIR_TEMPLATE_ID')) {
+                  errorMessage = `Flair template not found. The flair_id "${post.flair_id || 'unknown'}" is invalid for r/${post.subreddit}. Please check the flair_id and make sure it belongs to this subreddit.`;
+                  break;
+                } else if (textContent.length > 10 && 
+                    (textContent.includes('error') || textContent.includes('Error') || 
+                     textContent.includes('must') || textContent.includes('required'))) {
+                  errorMessage = textContent;
+                  break;
+                }
+              }
+            }
+            // Check for 'text' action with error messages
+            else if (item[2] === 'text' && Array.isArray(item[3]) && item[3].length > 0) {
+              const textContent = item[3][0];
+              if (typeof textContent === 'string' && textContent.length > 10 && 
+                  (textContent.includes('error') || textContent.includes('Error') || 
+                   textContent.includes('must') || textContent.includes('required'))) {
+                errorMessage = textContent;
+                break;
+              }
+            }
+          }
+        }
+        
+        // If we found an error message, throw it
+        if (errorMessage) {
+          const error = new Error(errorMessage);
+          error.redditResponse = response.data;
+          throw error;
+        }
+        
         // Check if success is true - this means the post was successful!
         if (response.data.success === true) {
           // Extract redirect URL from jquery array
@@ -256,8 +310,34 @@ async function uploadPost(post, accountId) {
           for (let i = 0; i < jqueryData.length; i++) {
             const item = jqueryData[i];
             if (Array.isArray(item) && item.length >= 4) {
-              // Check for text content (error messages)
-              if (item[2] === 'text' && Array.isArray(item[3]) && item[3].length > 0) {
+              // Check for 'call' action with error messages
+              if (item[2] === 'call' && Array.isArray(item[3]) && item[3].length > 0) {
+                const textContent = item[3][0];
+                if (typeof textContent === 'string' && textContent.length > 0) {
+                  // Check for specific error messages
+                  if (textContent.includes('Can\'t set flair_text without a flair_id') || 
+                      textContent.includes('flair_text without a flair_id')) {
+                    errorMessage = `Flair error: Cannot use flair_text without flair_id. This subreddit requires a valid flair_id. Please use "flair_id:..." in your TXT file instead of "flair:...".`;
+                    break;
+                  } else if (textContent.includes('must contain post flair') || 
+                             textContent.includes('FLAIR_REQUIRED') ||
+                             textContent.includes('SUBMIT_VALIDATION_FLAIR_REQUIRED')) {
+                    errorMessage = `This subreddit (r/${post.subreddit}) REQUIRES post flair. Please add a valid flair_id using "flair_id:..." in your TXT file.`;
+                    break;
+                  } else if (textContent.includes('Flair template not found') || 
+                             textContent.includes('BAD_FLAIR_TEMPLATE_ID')) {
+                    errorMessage = `Flair template not found. The flair_id "${post.flair_id || 'unknown'}" is invalid for r/${post.subreddit}. Please check the flair_id and make sure it belongs to this subreddit.`;
+                    break;
+                  } else if (textContent.length > 10 && 
+                      (textContent.includes('error') || textContent.includes('Error') || 
+                       textContent.includes('must') || textContent.includes('required'))) {
+                    errorMessage = textContent;
+                    break;
+                  }
+                }
+              }
+              // Check for 'text' action with error messages
+              else if (item[2] === 'text' && Array.isArray(item[3]) && item[3].length > 0) {
                 const textContent = item[3][0];
                 if (typeof textContent === 'string' && textContent.length > 10 && 
                     (textContent.includes('error') || textContent.includes('Error') || 

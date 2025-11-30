@@ -1115,3 +1115,46 @@ small {
     background: rgba(255, 255, 255, 0.3);
     transform: rotate(90deg);
 }
+
+/* Flairs Modal Styles */
+#flairsList {
+    scrollbar-width: thin;
+    scrollbar-color: #667eea #f1f5f9;
+}
+
+#flairsList::-webkit-scrollbar {
+    width: 8px;
+}
+
+#flairsList::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+}
+
+#flairsList::-webkit-scrollbar-thumb {
+    background: #667eea;
+    border-radius: 4px;
+}
+
+#flairsList::-webkit-scrollbar-thumb:hover {
+    background: #5568d3;
+}
+
+.flair-search {
+    font-family: inherit;
+}
+
+.flair-search:focus {
+    outline: none;
+}
+
+@keyframes slideInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

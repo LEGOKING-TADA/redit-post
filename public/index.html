@@ -135,6 +135,46 @@
         </div>
     </div>
 
+    <!-- Flairs Modal -->
+    <div id="flairsModal" class="modal hidden">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h2>🎨 Select Flair</h2>
+                <button class="modal-close" id="closeFlairsModalBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="flairsLoading" style="text-align: center; padding: 60px 40px;">
+                    <div class="loader-spinner" style="margin: 0 auto 20px;"></div>
+                    <p style="color: #667eea; font-weight: 500; font-size: 16px;">Loading flairs...</p>
+                </div>
+                <div id="flairsContent" style="display: none;">
+                    <div style="
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                        padding: 15px 20px;
+                        border-radius: 8px;
+                        margin-bottom: 20px;
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                    ">
+                        <span style="font-size: 24px;">📋</span>
+                        <div>
+                            <div style="font-weight: 600; font-size: 18px;" id="flairsSubreddit"></div>
+                            <div style="font-size: 13px; opacity: 0.9;" id="flairsCount"></div>
+                        </div>
+                    </div>
+                    <div id="flairsList" style="max-height: 450px; overflow-y: auto; padding-right: 5px;"></div>
+                    <div id="flairsError" style="display: none; padding: 20px; background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); border: 2px solid #f87171; border-radius: 8px; color: #991b1b; margin-top: 15px; text-align: center;">
+                        <div style="font-size: 32px; margin-bottom: 10px;">😕</div>
+                        <div style="font-weight: 600; margin-bottom: 5px;">No Flairs Found</div>
+                        <div style="font-size: 14px; opacity: 0.8;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Add Account Modal -->
     <div id="addAccountModal" class="modal hidden">
         <div class="modal-content">

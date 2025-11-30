@@ -487,6 +487,8 @@ function getUploadProgress(uploadId) {
 module.exports = {
   uploadPost,
   uploadAllPosts,
-  getUploadProgress
+  getUploadProgress,
+  getProxyAgents,
+  getAccessToken
 };
 

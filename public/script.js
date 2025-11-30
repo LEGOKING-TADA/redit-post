@@ -174,6 +174,16 @@ function setupEventListeners() {
             closeAddAccountModal();
         }
     });
+    
+    // Flairs modal close button
+    document.getElementById('closeFlairsModalBtn').addEventListener('click', closeFlairsModal);
+    
+    // Close flairs modal on outside click
+    document.getElementById('flairsModal').addEventListener('click', (e) => {
+        if (e.target.id === 'flairsModal') {
+            closeFlairsModal();
+        }
+    });
 }
 
 // Load accounts from API
@@ -354,9 +364,39 @@ function displayPosts(posts) {
             ? `<div style="color: #856404; font-size: 12px; margin-top: 5px; font-style: italic;">⚠️ ${warnings.join(', ')}</div>`
             : '';
         
-        const flairHTML = (post.flair_text || post.flair_id) 
-            ? `<p><strong>Flair:</strong> <span style="background: #667eea; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">${post.flair_text || post.flair_id}</span></p>`
-            : '';
+        // Build flair display with both ID and text if available
+        let flairHTML = '';
+        if (post.flair_id || post.flair_text) {
+            let flairDisplay = '';
+            if (post.flair_id) {
+                // Show text first, then ID if both available
+                if (post.flair_text) {
+                    flairDisplay = `${post.flair_text} - ID: ${post.flair_id.substring(0, 20)}...`;
+                } else {
+                    flairDisplay = `ID: ${post.flair_id.substring(0, 20)}...`;
+                }
+            } else if (post.flair_text) {
+                flairDisplay = post.flair_text;
+            }
+            
+            // Make flair clickable to change it
+            flairHTML = `<p><strong>Flair:</strong> <span 
+                onclick="checkFlairs(${post.id})" 
+                style="
+                    background: #667eea; 
+                    color: white; 
+                    padding: 2px 8px; 
+                    border-radius: 4px; 
+                    font-size: 12px; 
+                    cursor: pointer; 
+                    transition: all 0.2s ease;
+                    display: inline-block;
+                " 
+                onmouseover="this.style.background='#5568d3'; this.style.transform='scale(1.05)'" 
+                onmouseout="this.style.background='#667eea'; this.style.transform='scale(1)'"
+                title="Click to change flair"
+            >${flairDisplay} ✏️</span></p>`;
+        }
         
         postDiv.innerHTML = `
             <div>
@@ -367,9 +407,14 @@ function displayPosts(posts) {
                 ${flairHTML}
                 ${warningHTML}
             </div>
-            <button class="btn-primary" onclick="postSingle(${post.id})" ${!post.isValid ? 'disabled' : ''}>
-                Post
-            </button>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <button class="btn-secondary" onclick="checkFlairs(${post.id})" ${!post.hasSubreddit ? 'disabled' : ''} style="font-size: 14px; padding: 8px 16px;">
+                    🔍 Check for Flairs
+                </button>
+                <button class="btn-primary" onclick="postSingle(${post.id})" ${!post.isValid ? 'disabled' : ''}>
+                    Post
+                </button>
+            </div>
         `;
         
         postsList.appendChild(postDiv);
@@ -1428,6 +1473,241 @@ For Flair:
     URL.revokeObjectURL(url);
     
     showToast('Example TXT file downloaded!', 'success');
+}
+
+// Check flairs for a post
+async function checkFlairs(postId) {
+    const post = parsedPosts.find(p => p.id === postId);
+    if (!post || !post.subreddit || !currentAccountId) {
+        showToast('Please select an account and ensure the post has a subreddit', 'warning');
+        return;
+    }
+    
+    const subreddit = post.subreddit.trim().replace(/^r\//, '');
+    
+    // Open modal
+    const modal = document.getElementById('flairsModal');
+    const loadingDiv = document.getElementById('flairsLoading');
+    const contentDiv = document.getElementById('flairsContent');
+    const errorDiv = document.getElementById('flairsError');
+    const flairsList = document.getElementById('flairsList');
+    const subredditLabel = document.getElementById('flairsSubreddit');
+    
+    modal.classList.remove('hidden');
+    loadingDiv.style.display = 'block';
+    contentDiv.style.display = 'none';
+    errorDiv.style.display = 'none';
+    flairsList.innerHTML = '';
+    subredditLabel.textContent = `r/${subreddit}`;
+    const flairsCount = document.getElementById('flairsCount');
+    if (flairsCount) flairsCount.textContent = '';
+    
+    try {
+        const response = await fetch(`/api/flairs/${subreddit}?accountId=${currentAccountId}`, {
+            signal: AbortSignal.timeout(30000) // 30 second timeout
+        });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `Server error: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (!data.success || !data.flairs || data.flairs.length === 0) {
+            errorDiv.style.display = 'block';
+            errorDiv.querySelector('div:last-child').textContent = 'This subreddit may not have flairs, or they may not be exposed via API.';
+            loadingDiv.style.display = 'none';
+            contentDiv.style.display = 'block';
+            return;
+        }
+        
+        // Update count
+        const flairsCount = document.getElementById('flairsCount');
+        if (flairsCount) {
+            flairsCount.textContent = `${data.flairs.length} ${data.flairs.length === 1 ? 'flair available' : 'flairs available'}`;
+        }
+        
+        // Display flairs
+        flairsList.innerHTML = '';
+        
+        // Add search box if there are many flairs
+        if (data.flairs.length > 5) {
+            const searchBox = document.createElement('input');
+            searchBox.type = 'text';
+            searchBox.placeholder = '🔍 Search flairs...';
+            searchBox.className = 'flair-search';
+            searchBox.style.cssText = 'width: 100%; padding: 12px; margin-bottom: 15px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: all 0.3s ease;';
+            searchBox.addEventListener('input', (e) => {
+                const searchTerm = e.target.value.toLowerCase();
+                const items = flairsList.querySelectorAll('.flair-item');
+                items.forEach(item => {
+                    const text = item.dataset.flairText || '';
+                    if (text.toLowerCase().includes(searchTerm)) {
+                        item.style.display = '';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            });
+            searchBox.addEventListener('focus', (e) => {
+                e.target.style.borderColor = '#667eea';
+                e.target.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)';
+            });
+            searchBox.addEventListener('blur', (e) => {
+                e.target.style.borderColor = '#e0e0e0';
+                e.target.style.boxShadow = 'none';
+            });
+            flairsList.appendChild(searchBox);
+        }
+        
+        data.flairs.forEach((flair, index) => {
+            const flairItem = document.createElement('div');
+            flairItem.className = 'flair-item';
+            flairItem.dataset.flairText = flair.text || '';
+            flairItem.style.cssText = `
+                padding: 16px;
+                margin-bottom: 12px;
+                border: 2px solid #e0e7ff;
+                border-radius: 10px;
+                cursor: pointer;
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                background: linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%);
+                position: relative;
+                overflow: hidden;
+                animation: slideInUp 0.3s ease-out ${index * 0.05}s both;
+            `;
+            
+            const bgColor = flair.background_color && flair.background_color !== 'None' && flair.background_color !== 'none' 
+                ? flair.background_color 
+                : '#667eea';
+            const textColor = flair.text_color && flair.text_color !== 'Default' && flair.text_color !== 'default'
+                ? flair.text_color 
+                : '#ffffff';
+            
+            // Create a preview of how the flair will look
+            const flairPreview = flair.text || '(empty)';
+            
+            flairItem.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <div style="flex: 1; min-width: 0;">
+                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                            <div style="
+                                display: inline-block;
+                                padding: 4px 10px;
+                                border-radius: 6px;
+                                background: ${bgColor};
+                                color: ${textColor};
+                                font-weight: 600;
+                                font-size: 13px;
+                                white-space: nowrap;
+                                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                            ">${flairPreview}</div>
+                            ${flair.mod_only ? `<span style="font-size: 11px; color: #856404; background: #fff3cd; padding: 2px 6px; border-radius: 4px;">🔒 Mod Only</span>` : ''}
+                        </div>
+                        <div style="font-size: 12px; color: #64748b; font-family: 'Courier New', monospace; word-break: break-all;">
+                            ${flair.id ? `ID: ${flair.id.substring(0, 20)}...` : 'No ID'}
+                        </div>
+                        ${flair.text_editable ? `<div style="font-size: 11px; color: #059669; margin-top: 4px;">✏️ Text editable</div>` : ''}
+                    </div>
+                    <div style="
+                        width: 50px;
+                        height: 50px;
+                        border-radius: 8px;
+                        background: ${bgColor};
+                        border: 3px solid #e0e7ff;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        font-size: 20px;
+                        flex-shrink: 0;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                        transition: all 0.3s ease;
+                    " title="Flair Color">🎨</div>
+                </div>
+                <div style="
+                    position: absolute;
+                    top: 0;
+                    left: -100%;
+                    width: 100%;
+                    height: 100%;
+                    background: linear-gradient(90deg, transparent, rgba(102, 126, 234, 0.1), transparent);
+                    transition: left 0.5s ease;
+                " class="flair-shine"></div>
+            `;
+            
+            flairItem.addEventListener('click', () => {
+                // Add selection animation
+                flairItem.style.transform = 'scale(0.98)';
+                setTimeout(() => {
+                    selectFlair(postId, flair);
+                }, 150);
+            });
+            
+            flairItem.addEventListener('mouseenter', () => {
+                flairItem.style.borderColor = '#667eea';
+                flairItem.style.transform = 'translateX(8px) scale(1.02)';
+                flairItem.style.boxShadow = '0 4px 16px rgba(102, 126, 234, 0.3)';
+                flairItem.style.background = 'linear-gradient(135deg, #ffffff 0%, #f0f4ff 100%)';
+                const shine = flairItem.querySelector('.flair-shine');
+                if (shine) shine.style.left = '100%';
+            });
+            
+            flairItem.addEventListener('mouseleave', () => {
+                flairItem.style.borderColor = '#e0e7ff';
+                flairItem.style.transform = 'translateX(0) scale(1)';
+                flairItem.style.boxShadow = 'none';
+                flairItem.style.background = 'linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%)';
+                const shine = flairItem.querySelector('.flair-shine');
+                if (shine) shine.style.left = '-100%';
+            });
+            
+            flairsList.appendChild(flairItem);
+        });
+        
+        loadingDiv.style.display = 'none';
+        contentDiv.style.display = 'block';
+        
+    } catch (error) {
+        console.error('Error fetching flairs:', error);
+        loadingDiv.style.display = 'none';
+        contentDiv.style.display = 'block';
+        errorDiv.style.display = 'block';
+        errorDiv.textContent = error.message || 'Failed to fetch flairs. Please try again.';
+    }
+}
+
+// Select flair for a post
+function selectFlair(postId, flair) {
+    const post = parsedPosts.find(p => p.id === postId);
+    if (!post) return;
+    
+    // Update post object - keep both ID and text
+    if (flair.id) {
+        post.flair_id = flair.id;
+        // Keep the text as well if available
+        if (flair.text && flair.text !== '(empty)') {
+            post.flair_text = flair.text;
+        }
+    } else if (flair.text && flair.text !== '(empty)') {
+        post.flair_text = flair.text;
+        post.flair_id = null; // Clear ID if text is set
+    }
+    
+    // Close modal
+    closeFlairsModal();
+    
+    // Refresh display
+    displayPosts(parsedPosts);
+    
+    // Show success message
+    const flairName = flair.text && flair.text !== '(empty)' ? flair.text : (flair.id ? `ID: ${flair.id.substring(0, 20)}...` : 'Unknown');
+    showToast(`Flair "${flairName}" selected for r/${post.subreddit}`, 'success');
+}
+
+// Close flairs modal
+function closeFlairsModal() {
+    document.getElementById('flairsModal').classList.add('hidden');
 }
 
 // Toast Notification System

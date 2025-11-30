@@ -5,7 +5,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { parseTxtFile } = require('./utils/parser');
-const { uploadPost, uploadAllPosts } = require('./utils/reddit');
+const { uploadPost, uploadAllPosts, getAccessToken, getProxyAgents } = require('./utils/reddit');
 const { initDatabase, getAllAccounts, getAccountById, addAccount, updateAccount, deleteAccount } = require('./db/database');
 const axios = require('axios');
 const crypto = require('crypto');
@@ -321,6 +321,207 @@ app.get('/api/posts/progress/:uploadId', (req, res) => {
   }
   
   res.json(progress);
+});
+
+// Get flairs for a subreddit
+app.get('/api/flairs/:subreddit', async (req, res) => {
+  try {
+    const { subreddit } = req.params;
+    const { accountId } = req.query;
+    
+    if (!accountId) {
+      return res.status(400).json({ error: 'Missing accountId query parameter' });
+    }
+    
+    const account = await getAccountById(accountId);
+    if (!account) {
+      return res.status(404).json({ error: 'Account not found' });
+    }
+    
+    // Use the same function from get-flairs.js
+    const { getSubredditFlairs } = require('./get-flairs');
+    const subredditName = subreddit.replace(/^r\//, ''); // Remove r/ if present
+    
+    // Temporarily set environment variables to match the account (like get-flairs.js does)
+    const originalEnv = {
+      REDDIT_CLIENT_ID: process.env.REDDIT_CLIENT_ID,
+      REDDIT_CLIENT_SECRET: process.env.REDDIT_CLIENT_SECRET,
+      REDDIT_USERNAME: process.env.REDDIT_USERNAME,
+      REDDIT_PASSWORD: process.env.REDDIT_PASSWORD
+    };
+    
+    // Set environment variables from account (get-flairs.js checks these first)
+    process.env.REDDIT_CLIENT_ID = account.client_id;
+    process.env.REDDIT_CLIENT_SECRET = account.client_secret;
+    
+    // Try to get username/password from accounts.json
+    let username = null;
+    let password = null;
+    try {
+      if (fs.existsSync('./accounts.json')) {
+        const accountsData = JSON.parse(fs.readFileSync('./accounts.json', 'utf8'));
+        const accounts = Array.isArray(accountsData) ? accountsData : (accountsData.accounts || []);
+        const foundAccount = accounts.find(a => a.client_id === account.client_id) || accounts[0];
+        if (foundAccount && foundAccount.username && foundAccount.password) {
+          username = foundAccount.username;
+          password = foundAccount.password;
+          process.env.REDDIT_USERNAME = username;
+          process.env.REDDIT_PASSWORD = password;
+        }
+      }
+    } catch (error) {
+      // Ignore
+    }
+    
+    let flairTemplates = [];
+    
+    try {
+      // Call getSubredditFlairs which uses the same logic as get-flairs.js
+      // We need to modify it slightly to return the data instead of console.log
+      const snoowrap = require('snoowrap');
+      
+      // Get credentials (same as get-flairs.js)
+      let credentials = {
+        clientId: process.env.REDDIT_CLIENT_ID,
+        clientSecret: process.env.REDDIT_CLIENT_SECRET,
+        username: process.env.REDDIT_USERNAME,
+        password: process.env.REDDIT_PASSWORD
+      };
+      
+      // If not found, try accounts.json
+      if (!credentials.username || !credentials.password) {
+        try {
+          if (fs.existsSync('./accounts.json')) {
+            const accountsData = JSON.parse(fs.readFileSync('./accounts.json', 'utf8'));
+            const accounts = Array.isArray(accountsData) ? accountsData : (accountsData.accounts || []);
+            if (accounts.length > 0) {
+              const firstAccount = accounts[0];
+              credentials.clientId = credentials.clientId || firstAccount.client_id;
+              credentials.clientSecret = credentials.clientSecret || firstAccount.client_secret;
+              credentials.username = credentials.username || firstAccount.username;
+              credentials.password = credentials.password || firstAccount.password;
+            }
+          }
+        } catch (error) {
+          // Ignore
+        }
+      }
+      
+      if (!credentials.clientId || !credentials.clientSecret || !credentials.username || !credentials.password) {
+        throw new Error('Missing credentials: username/password required. Please add them to accounts.json');
+      }
+      
+      // Create snoowrap instance (exactly like get-flairs.js)
+      const r = new snoowrap({
+        userAgent: 'RedditPostAPI-FlairChecker/1.0 (by /u/redditpostapi)',
+        clientId: credentials.clientId,
+        clientSecret: credentials.clientSecret,
+        username: credentials.username,
+        password: credentials.password
+      });
+      
+      // Try different endpoints to get flairs (same as get-flairs.js)
+      try {
+        // Method 1: Direct API call to link_flair endpoint
+        const response = await r.oauthRequest({
+          uri: `r/${subredditName}/api/link_flair.json`,
+          method: 'get'
+        });
+        
+        if (Array.isArray(response)) {
+          flairTemplates = response;
+        } else if (response.choices) {
+          flairTemplates = response.choices;
+        } else if (response.length) {
+          flairTemplates = response;
+        }
+      } catch (error) {
+        // Method 2: Try about.json endpoint
+        try {
+          const about = await r.oauthRequest({
+            uri: `r/${subredditName}/about.json`,
+            method: 'get'
+          });
+          
+          if (about.data && about.data.link_flair_templates) {
+            flairTemplates = about.data.link_flair_templates;
+          }
+        } catch (error2) {
+          // Method 3: Try POST to link_flair
+          try {
+            const response = await r.oauthRequest({
+              uri: 'api/link_flair',
+              method: 'post',
+              form: { sr: subredditName }
+            });
+            
+            if (Array.isArray(response)) {
+              flairTemplates = response;
+            } else if (response.choices) {
+              flairTemplates = response.choices;
+            }
+          } catch (error3) {
+            throw new Error(`Could not fetch flairs: ${error.message}`);
+          }
+        }
+      }
+    } finally {
+      // Restore original environment variables
+      if (originalEnv.REDDIT_CLIENT_ID) process.env.REDDIT_CLIENT_ID = originalEnv.REDDIT_CLIENT_ID;
+      else delete process.env.REDDIT_CLIENT_ID;
+      if (originalEnv.REDDIT_CLIENT_SECRET) process.env.REDDIT_CLIENT_SECRET = originalEnv.REDDIT_CLIENT_SECRET;
+      else delete process.env.REDDIT_CLIENT_SECRET;
+      if (originalEnv.REDDIT_USERNAME) process.env.REDDIT_USERNAME = originalEnv.REDDIT_USERNAME;
+      else delete process.env.REDDIT_USERNAME;
+      if (originalEnv.REDDIT_PASSWORD) process.env.REDDIT_PASSWORD = originalEnv.REDDIT_PASSWORD;
+      else delete process.env.REDDIT_PASSWORD;
+    }
+    
+    console.log(`[Flairs] Found ${flairTemplates.length} flairs for r/${subredditName}`);
+    
+    // Format flairs for frontend
+    const formattedFlairs = flairTemplates.map((flair) => {
+      const flairText = flair.text || flair.flair_text || flair[0] || '(empty)';
+      const flairId = flair.id || flair.flair_template_id || flair[1] || null;
+      const bgColor = flair.background_color || flair.background_color_hex || 'None';
+      const textColor = flair.text_color || flair.text_color_hex || 'Default';
+      const cssClass = flair.css_class || '(none)';
+      const textEditable = flair.text_editable !== undefined ? flair.text_editable : false;
+      const modOnly = flair.mod_only !== undefined ? flair.mod_only : false;
+      
+      return {
+        text: flairText,
+        id: flairId,
+        background_color: bgColor,
+        text_color: textColor,
+        css_class: cssClass,
+        text_editable: textEditable,
+        mod_only: modOnly
+      };
+    });
+    
+    res.json({
+      success: true,
+      subreddit: subredditName,
+      flairs: formattedFlairs,
+      count: formattedFlairs.length
+    });
+  } catch (error) {
+    console.error('Error getting flairs:', error);
+    
+    let errorMessage = error.message || 'Failed to get flairs';
+    if (error.response?.status === 401) {
+      errorMessage = 'Authentication failed. Please check your account credentials.';
+    } else if (error.response?.status === 403) {
+      errorMessage = 'Access forbidden. This subreddit may be private or restricted.';
+    } else if (error.response?.status === 404) {
+      errorMessage = 'Subreddit not found. Check the spelling.';
+    } else if (error.message?.includes('rate limit')) {
+      errorMessage = 'Rate limit exceeded. Please wait before trying again.';
+    }
+    
+    res.status(500).json({ error: errorMessage });
+  }
 });
 
 // Check proxy IP
